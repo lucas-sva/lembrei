@@ -1,0 +1,69 @@
+# ─── Dependências ────────────────────────────────────────────────────────────
+node_modules/
+.pnp
+.pnp.js
+
+# ─── Build e distribuição ─────────────────────────────────────────────────────
+dist/
+dist-ssr/
+*.local
+
+# ─── Tauri / Rust ─────────────────────────────────────────────────────────────
+target/
+src-tauri/target/
+src-tauri/gen/
+*.rlib
+*.rmeta
+*.d
+
+# ─── Banco de dados local (gerado em tempo de execução) ───────────────────────
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+
+# ─── Variáveis de ambiente ────────────────────────────────────────────────────
+.env
+.env.local
+.env.*.local
+.env.development
+.env.production
+.env.staging
+
+# ─── Logs ─────────────────────────────────────────────────────────────────────
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+
+# ─── Sistema operacional ──────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+*.swp
+*.swo
+*~
+
+# ─── IDEs e editores ──────────────────────────────────────────────────────────
+.vscode/settings.json
+.vscode/launch.json
+.idea/
+*.suo
+*.user
+.vs/
+
+# ─── TypeScript ───────────────────────────────────────────────────────────────
+*.tsbuildinfo
+
+# ─── Temporários ──────────────────────────────────────────────────────────────
+tmp/
+temp/
+.cache/
+
+# ─── Ferramentas de IA (não versionadas por política do projeto) ───────────────
+CLAUDE.md
+.claude/
