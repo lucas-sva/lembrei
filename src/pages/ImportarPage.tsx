@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { ArrowLeft, Copy, Check, Download, Sparkles, AlertCircle } from 'lucide-react'
 import { api } from '../lib/tauri'
@@ -183,6 +183,7 @@ export default function ImportarPage() {
   const [cargo,      setCargo]      = useState('')
   const [prompt,     setPrompt]     = useState('')
   const [copiado,    setCopiado]    = useState(false)
+  const promptRef = useRef<HTMLTextAreaElement>(null)
 
   // Importação
   const [jsonInput,  setJsonInput]  = useState('')
@@ -201,10 +202,15 @@ export default function ImportarPage() {
     setPrompt(gerarPrompt(disciplina, banca, topicos, quantidade, nivel, cargo))
   }
 
-  async function handleCopiar() {
-    await navigator.clipboard.writeText(prompt)
+  function handleCopiar() {
+    const el = promptRef.current
+    if (!el) return
+    el.select()
+    el.setSelectionRange(0, el.value.length)
+    document.execCommand('copy')
+    window.getSelection()?.removeAllRanges()
     setCopiado(true)
-    setTimeout(() => setCopiado(false), 2000)
+    setTimeout(() => setCopiado(false), 2500)
   }
 
   function handleValidar() {
@@ -331,29 +337,36 @@ export default function ImportarPage() {
             </button>
 
             {prompt && (
-              <div className="flex flex-col gap-2 animate-fade-in">
-                <div className="flex items-center justify-between">
-                  <label className="text-xs text-slate-400 font-medium uppercase tracking-wider">
-                    Prompt gerado
-                  </label>
-                  <button onClick={handleCopiar} className="btn-ghost text-xs px-2 py-1 gap-1">
-                    {copiado ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
-                    {copiado ? 'Copiado!' : 'Copiar'}
+              <div className="flex flex-col gap-3 animate-fade-in">
+                <label className="text-xs text-slate-400 font-medium uppercase tracking-wider">
+                  Prompt gerado — selecione tudo e copie, ou use o botão
+                </label>
+                <div className="relative">
+                  <textarea
+                    ref={promptRef}
+                    readOnly
+                    value={prompt}
+                    rows={14}
+                    className="textarea-field text-xs text-slate-300 selecao-permitida pr-3 pb-14"
+                    onClick={(e) => (e.target as HTMLTextAreaElement).select()}
+                  />
+                  {/* Botão de copiar fixo na parte inferior do textarea */}
+                  <button
+                    onClick={handleCopiar}
+                    className={`absolute bottom-3 right-3 flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold shadow-lg transition-all duration-200 ${
+                      copiado
+                        ? 'bg-emerald-600 text-white'
+                        : 'bg-brand-600 hover:bg-brand-700 text-white'
+                    }`}
+                  >
+                    {copiado ? <Check size={14} /> : <Copy size={14} />}
+                    {copiado ? 'Copiado!' : 'Copiar prompt'}
                   </button>
                 </div>
-                <textarea
-                  readOnly
-                  value={prompt}
-                  rows={12}
-                  className="textarea-field text-xs text-slate-400 selecao-permitida"
-                />
                 <p className="text-xs text-slate-600">
-                  Cole este prompt em Claude, ChatGPT ou outra IA. Depois vá para a aba "Importar JSON" e cole a resposta.
+                  Cole no Claude, ChatGPT ou outra IA. Depois volte aqui e importe o JSON retornado.
                 </p>
-                <button
-                  onClick={() => setAba('import')}
-                  className="btn-ghost text-xs"
-                >
+                <button onClick={() => setAba('import')} className="btn-ghost text-xs">
                   Tenho o JSON → Importar
                 </button>
               </div>
