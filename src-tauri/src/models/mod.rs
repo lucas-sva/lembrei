@@ -85,16 +85,47 @@ pub struct EstatisticasDeck {
     pub reaprendendo: i64,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HistoricoRevisao {
+    pub id: String,
+    pub cartao_id: String,
+    pub avaliacao: i32,
+    pub estabilidade_antes: f64,
+    pub estabilidade_depois: f64,
+    pub dificuldade_depois: f64,
+    pub intervalo_dias: i64,
+    pub revisado_em: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RevisoesDia {
+    pub data: String,
+    pub total: i64,
+    pub corretas: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EstatisticasDetalhadas {
+    pub total_revisoes: i64,
+    pub taxa_retencao: f64,
+    pub recuperabilidade_media: f64,
+    pub revisoes_por_dia: Vec<RevisoesDia>,
+    pub distribuicao_estados: EstatisticasDeck,
+}
+
 // ─── Inputs (frontend → backend) ────────────────────────────────────────────
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CriarDeckInput {
     pub nome: String,
     pub descricao: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AtualizarDeckInput {
     pub id: String,
@@ -102,7 +133,7 @@ pub struct AtualizarDeckInput {
     pub descricao: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CriarAlternativaInput {
     pub letra: String,
@@ -111,7 +142,7 @@ pub struct CriarAlternativaInput {
     pub ordem: i32,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CriarAssertiviaInput {
     pub numero_romano: String,
@@ -120,7 +151,7 @@ pub struct CriarAssertiviaInput {
     pub ordem: i32,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CriarCartaoInput {
     pub deck_id: String,
@@ -129,6 +160,34 @@ pub struct CriarCartaoInput {
     pub alternativas: Vec<CriarAlternativaInput>,
     pub assertivas: Vec<CriarAssertiviaInput>,
     pub tags: Vec<String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AtualizarCartaoInput {
+    pub id: String,
+    pub enunciado: String,
+    pub justificativa: Option<String>,
+    pub alternativas: Vec<CriarAlternativaInput>,
+    pub assertivas: Vec<CriarAssertiviaInput>,
+    pub tags: Vec<String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ImportarCartaoInput {
+    pub enunciado: String,
+    pub justificativa: Option<String>,
+    pub alternativas: Vec<CriarAlternativaInput>,
+    pub assertivas: Vec<CriarAssertiviaInput>,
+    pub tags: Vec<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ImportarLoteInput {
+    pub deck_id: String,
+    pub cartoes: Vec<ImportarCartaoInput>,
 }
 
 #[derive(Debug, Deserialize)]

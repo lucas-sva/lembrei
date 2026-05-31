@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, BookOpen, Trash2, Play, Brain } from 'lucide-react'
+import { Plus, BookOpen, Trash2, Play, BarChart2, LayoutGrid, Sparkles } from 'lucide-react'
 import { useDecksStore } from '../stores/decksStore'
 import type { Deck } from '../types'
+import logoUrl from '../../assets/logo.png'
 
 export default function DecksPage() {
   const navigate = useNavigate()
@@ -31,10 +32,11 @@ export default function DecksPage() {
     if (!nomeDeck.trim()) return
     setSalvando(true)
     try {
-      await criarDeck(nomeDeck.trim(), descricao.trim() || undefined)
+      const deck = await criarDeck(nomeDeck.trim(), descricao.trim() || undefined)
       setNomeDeck('')
       setDescricao('')
       setCriando(false)
+      carregarEstatisticas(deck.id)
     } finally {
       setSalvando(false)
     }
@@ -46,18 +48,37 @@ export default function DecksPage() {
     await deletarDeck(deck.id)
   }
 
+  const totalHoje = Object.values(estatisticas).reduce(
+    (s, e) => s + e.paraRevisarHoje + e.novos, 0
+  )
+
   return (
     <div className="min-h-screen bg-slate-950 px-6 py-8 max-w-3xl mx-auto">
       {/* Header */}
       <div className="flex items-center justify-between mb-8">
         <div className="flex items-center gap-3">
-          <Brain className="text-brand-500" size={28} />
+          <img src={logoUrl} alt="Lembrei" className="w-8 h-8 rounded-lg object-cover" />
           <h1 className="text-2xl font-bold text-slate-100">Lembrei</h1>
+          {totalHoje > 0 && (
+            <span className="chip bg-amber-900/60 text-amber-300 border border-amber-700/50 text-xs">
+              {totalHoje} p/ hoje
+            </span>
+          )}
         </div>
-        <button onClick={() => setCriando(true)} className="btn-primary">
-          <Plus size={16} />
-          Novo Deck
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => navigate('/estatisticas')}
+            className="btn-ghost px-3 py-1.5 text-xs"
+            title="Estatísticas"
+          >
+            <BarChart2 size={15} />
+            Stats
+          </button>
+          <button onClick={() => setCriando(true)} className="btn-primary">
+            <Plus size={16} />
+            Novo Deck
+          </button>
+        </div>
       </div>
 
       {/* Modal de criação */}
@@ -75,10 +96,8 @@ export default function DecksPage() {
                 autoFocus
                 value={nomeDeck}
                 onChange={(e) => setNomeDeck(e.target.value)}
-                placeholder="Ex: Direito Civil"
-                className="bg-slate-800 border border-slate-700 rounded-lg px-3 py-2
-                           text-sm text-slate-100 placeholder-slate-500
-                           focus:outline-none focus:border-brand-500 transition-colors"
+                placeholder="Ex: Infraestrutura de TI"
+                className="input-field w-full"
                 maxLength={100}
               />
             </div>
@@ -90,9 +109,7 @@ export default function DecksPage() {
                 onChange={(e) => setDescricao(e.target.value)}
                 placeholder="Opcional"
                 rows={2}
-                className="bg-slate-800 border border-slate-700 rounded-lg px-3 py-2
-                           text-sm text-slate-100 placeholder-slate-500 resize-none
-                           focus:outline-none focus:border-brand-500 transition-colors"
+                className="textarea-field"
                 maxLength={300}
               />
             </div>
@@ -113,7 +130,7 @@ export default function DecksPage() {
         </div>
       )}
 
-      {/* Lista de decks */}
+      {/* Estado vazio */}
       {carregando && (
         <div className="flex items-center justify-center py-16 text-slate-500">
           Carregando…
@@ -121,57 +138,92 @@ export default function DecksPage() {
       )}
 
       {!carregando && decks.length === 0 && (
-        <div className="flex flex-col items-center justify-center py-16 gap-3 text-slate-500">
+        <div className="flex flex-col items-center justify-center py-16 gap-4 text-slate-500">
           <BookOpen size={40} className="opacity-30" />
-          <p className="text-sm">Nenhum deck ainda. Crie o primeiro!</p>
+          <div className="text-center">
+            <p className="text-sm mb-1">Nenhum deck ainda.</p>
+            <p className="text-xs text-slate-600">Crie um deck e adicione cartões manualmente ou importe via IA.</p>
+          </div>
+          <button onClick={() => setCriando(true)} className="btn-primary mt-2">
+            <Plus size={14} /> Criar primeiro deck
+          </button>
         </div>
       )}
 
+      {/* Lista de decks */}
       <div className="flex flex-col gap-3">
         {decks.map((deck) => {
-          const stats = estatisticas[deck.id]
+          const stats        = estatisticas[deck.id]
+          const podeRevisar  = (stats?.paraRevisarHoje ?? 0) > 0 || (stats?.novos ?? 0) > 0
+
           return (
-            <div key={deck.id} className="card-surface p-5 flex items-center gap-4 group">
-              <div className="flex-1 min-w-0">
-                <h3 className="font-semibold text-slate-100 truncate">{deck.nome}</h3>
-                {deck.descricao && (
-                  <p className="text-xs text-slate-500 truncate mt-0.5">{deck.descricao}</p>
-                )}
-                {stats && (
-                  <div className="flex gap-3 mt-2">
-                    <StatChip label="Total"   valor={stats.totalCartoes}    cor="text-slate-400" />
-                    <StatChip label="Hoje"    valor={stats.paraRevisarHoje} cor="text-amber-400" />
-                    <StatChip label="Novos"   valor={stats.novos}           cor="text-sky-400" />
-                    <StatChip label="Revisão" valor={stats.emRevisao}       cor="text-emerald-400" />
-                  </div>
-                )}
+            <div key={deck.id} className="card-surface p-4 flex flex-col gap-3 group hover:border-slate-700 transition-colors">
+              {/* Linha principal */}
+              <div className="flex items-start gap-3">
+                <div className="flex-1 min-w-0">
+                  <h3 className="font-semibold text-slate-100 truncate">{deck.nome}</h3>
+                  {deck.descricao && (
+                    <p className="text-xs text-slate-500 truncate mt-0.5">{deck.descricao}</p>
+                  )}
+                </div>
+                <button
+                  onClick={() => handleDeletar(deck)}
+                  className="btn-ghost px-2 py-1 text-rose-700 hover:text-rose-400 opacity-0
+                             group-hover:opacity-100 transition-opacity shrink-0"
+                  title="Deletar deck"
+                >
+                  <Trash2 size={13} />
+                </button>
               </div>
 
-              <div className="flex items-center gap-2 shrink-0">
+              {/* Stats */}
+              {stats && (
+                <div className="flex gap-4 text-xs">
+                  <Stat label="Total"     valor={stats.totalCartoes}    cor="text-slate-400" />
+                  <Stat label="Hoje"      valor={stats.paraRevisarHoje} cor="text-amber-400" />
+                  <Stat label="Novos"     valor={stats.novos}           cor="text-sky-400" />
+                  <Stat label="Revisão"   valor={stats.emRevisao}       cor="text-emerald-400" />
+                  {stats.reaprendendo > 0 && (
+                    <Stat label="Reaprendendo" valor={stats.reaprendendo} cor="text-rose-400" />
+                  )}
+                </div>
+              )}
+
+              {/* Ações */}
+              <div className="flex items-center gap-2 pt-1 border-t border-slate-800">
+                <button
+                  onClick={() => navigate(`/painel/${deck.id}`)}
+                  className="btn-ghost px-2.5 py-1.5 text-xs"
+                  title="Gerenciar cartões"
+                >
+                  <LayoutGrid size={13} />
+                  Painel
+                </button>
                 <button
                   onClick={() => navigate(`/editor/${deck.id}`)}
-                  className="btn-ghost px-3 py-1.5 text-xs"
+                  className="btn-ghost px-2.5 py-1.5 text-xs"
                   title="Adicionar cartão"
                 >
-                  <Plus size={14} />
+                  <Plus size={13} />
                   Cartão
                 </button>
                 <button
+                  onClick={() => navigate(`/importar/${deck.id}`)}
+                  className="btn-ghost px-2.5 py-1.5 text-xs"
+                  title="Importar via IA"
+                >
+                  <Sparkles size={13} />
+                  Importar IA
+                </button>
+                <div className="flex-1" />
+                <button
                   onClick={() => navigate(`/revisar/${deck.id}`)}
-                  disabled={stats?.paraRevisarHoje === 0 && stats?.novos === 0}
+                  disabled={!podeRevisar}
                   className="btn-primary px-3 py-1.5 text-xs disabled:opacity-40"
                   title="Iniciar sessão de revisão"
                 >
-                  <Play size={14} />
-                  Revisar
-                </button>
-                <button
-                  onClick={() => handleDeletar(deck)}
-                  className="btn-ghost px-2 py-1.5 text-rose-600 hover:text-rose-400 opacity-0
-                             group-hover:opacity-100 transition-opacity"
-                  title="Deletar deck"
-                >
-                  <Trash2 size={14} />
+                  <Play size={13} />
+                  {podeRevisar ? `Revisar (${(stats?.paraRevisarHoje ?? 0) + (stats?.novos ?? 0)})` : 'Em dia ✓'}
                 </button>
               </div>
             </div>
@@ -182,9 +234,9 @@ export default function DecksPage() {
   )
 }
 
-function StatChip({ label, valor, cor }: { label: string; valor: number; cor: string }) {
+function Stat({ label, valor, cor }: { label: string; valor: number; cor: string }) {
   return (
-    <span className="flex items-center gap-1 text-xs">
+    <span className="flex items-center gap-1">
       <span className={`font-semibold tabular-nums ${cor}`}>{valor}</span>
       <span className="text-slate-600">{label}</span>
     </span>

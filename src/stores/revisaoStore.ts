@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { CartaoCompleto, Avaliacao } from '../types'
+import type { CartaoCompleto, Avaliacao, EstadoSrs } from '../types'
 import { api } from '../lib/tauri'
 
 interface RevisaoState {
@@ -7,14 +7,16 @@ interface RevisaoState {
   indiceAtual: number
   totalSessao: number
   revisadosNaSessao: number
+  ultimoEstadoSrs: EstadoSrs | null
   carregando: boolean
   erro: string | null
 
   iniciarSessao: (deckId: string) => Promise<void>
-  responder: (cartaoId: string, avaliacao: Avaliacao) => Promise<void>
-  cartaoAtual: () => CartaoCompleto | null
-  progresso: () => number
-  encerrada: () => boolean
+  responder:     (cartaoId: string, avaliacao: Avaliacao) => Promise<EstadoSrs>
+  avancar:       () => void
+  cartaoAtual:   () => CartaoCompleto | null
+  progresso:     () => number
+  encerrada:     () => boolean
 }
 
 export const useRevisaoStore = create<RevisaoState>((set, get) => ({
@@ -22,11 +24,12 @@ export const useRevisaoStore = create<RevisaoState>((set, get) => ({
   indiceAtual:        0,
   totalSessao:        0,
   revisadosNaSessao:  0,
+  ultimoEstadoSrs:    null,
   carregando:         false,
   erro:               null,
 
   iniciarSessao: async (deckId) => {
-    set({ carregando: true, erro: null })
+    set({ carregando: true, erro: null, ultimoEstadoSrs: null })
     try {
       const fila = await api.cartoes.paraRevisao(deckId, 50)
       set({
@@ -34,6 +37,7 @@ export const useRevisaoStore = create<RevisaoState>((set, get) => ({
         indiceAtual:       0,
         totalSessao:       fila.length,
         revisadosNaSessao: 0,
+        ultimoEstadoSrs:   null,
         carregando:        false,
       })
     } catch (e) {
@@ -42,10 +46,16 @@ export const useRevisaoStore = create<RevisaoState>((set, get) => ({
   },
 
   responder: async (cartaoId, avaliacao) => {
-    await api.revisoes.registrar({ cartaoId, avaliacao })
+    const estado = await api.revisoes.registrar({ cartaoId, avaliacao })
+    set({ ultimoEstadoSrs: estado })
+    return estado
+  },
+
+  avancar: () => {
     set((s) => ({
       indiceAtual:       s.indiceAtual + 1,
       revisadosNaSessao: s.revisadosNaSessao + 1,
+      ultimoEstadoSrs:   null,
     }))
   },
 

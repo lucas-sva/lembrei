@@ -116,7 +116,7 @@ impl Database {
         )?;
 
         Ok(EstatisticasDeck {
-            total_cartoes:   total,
+            total_cartoes:     total,
             para_revisar_hoje: para_revisar,
             novos,
             aprendendo,
@@ -143,6 +143,11 @@ impl Database {
             })
         })?;
         rows.collect()
+    }
+
+    pub fn listar_cartoes_completos_do_deck(&self, deck_id: &str) -> SqlResult<Vec<CartaoCompleto>> {
+        let cartoes = self.listar_cartoes_do_deck(deck_id)?;
+        cartoes.iter().map(|c| self.buscar_cartao_completo(&c.id)).collect()
     }
 
     pub fn buscar_cartao_completo(&self, cartao_id: &str) -> SqlResult<CartaoCompleto> {
@@ -209,15 +214,53 @@ impl Database {
         self.buscar_cartao_completo(&cartao_id)
     }
 
+    pub fn atualizar_cartao(&self, input: &AtualizarCartaoInput) -> SqlResult<CartaoCompleto> {
+        let agora = chrono::Utc::now().to_rfc3339();
+
+        self.conn.execute(
+            "UPDATE cartoes SET enunciado = ?1, justificativa = ?2, atualizado_em = ?3 WHERE id = ?4",
+            params![input.enunciado, input.justificativa, agora, input.id],
+        )?;
+
+        self.conn.execute("DELETE FROM alternativas WHERE cartao_id = ?1", params![input.id])?;
+        for alt in &input.alternativas {
+            let id = uuid::Uuid::new_v4().to_string();
+            self.conn.execute(
+                "INSERT INTO alternativas (id, cartao_id, letra, texto, correta, ordem)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+                params![id, input.id, alt.letra, alt.texto, alt.correta as i32, alt.ordem],
+            )?;
+        }
+
+        self.conn.execute("DELETE FROM assertivas WHERE cartao_id = ?1", params![input.id])?;
+        for ass in &input.assertivas {
+            let id = uuid::Uuid::new_v4().to_string();
+            self.conn.execute(
+                "INSERT INTO assertivas (id, cartao_id, numero_romano, texto, correta, ordem)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+                params![id, input.id, ass.numero_romano, ass.texto, ass.correta as i32, ass.ordem],
+            )?;
+        }
+
+        self.conn.execute("DELETE FROM cartao_tags WHERE cartao_id = ?1", params![input.id])?;
+        for nome_tag in &input.tags {
+            let tag_id = self.obter_ou_criar_tag(nome_tag)?;
+            self.conn.execute(
+                "INSERT OR IGNORE INTO cartao_tags (cartao_id, tag_id) VALUES (?1, ?2)",
+                params![input.id, tag_id],
+            )?;
+        }
+
+        self.buscar_cartao_completo(&input.id)
+    }
+
     pub fn deletar_cartao(&self, cartao_id: &str) -> SqlResult<usize> {
         self.conn.execute("DELETE FROM cartoes WHERE id = ?1", params![cartao_id])
     }
 
-    /// Retorna cartões prontos para revisão: vencidos (proxima_revisao <= agora) + novos.
     pub fn buscar_cartoes_para_revisao(&self, deck_id: &str, limite: i64) -> SqlResult<Vec<CartaoCompleto>> {
         let agora = chrono::Utc::now().to_rfc3339();
 
-        // Cartões vencidos + novos (sem estado_srs ainda)
         let mut stmt = self.conn.prepare(
             "SELECT c.id FROM cartoes c
              LEFT JOIN estado_srs s ON s.cartao_id = c.id
@@ -315,6 +358,108 @@ impl Database {
         Ok(())
     }
 
+    pub fn historico_por_cartao(&self, cartao_id: &str) -> SqlResult<Vec<HistoricoRevisao>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT id, cartao_id, avaliacao, estabilidade_antes, estabilidade_depois,
+                    dificuldade_depois, intervalo_dias, revisado_em
+             FROM historico_revisoes WHERE cartao_id = ?1 ORDER BY revisado_em ASC",
+        )?;
+        let rows = stmt.query_map(params![cartao_id], |row| {
+            Ok(HistoricoRevisao {
+                id:                   row.get(0)?,
+                cartao_id:            row.get(1)?,
+                avaliacao:            row.get(2)?,
+                estabilidade_antes:   row.get(3)?,
+                estabilidade_depois:  row.get(4)?,
+                dificuldade_depois:   row.get(5)?,
+                intervalo_dias:       row.get(6)?,
+                revisado_em:          row.get(7)?,
+            })
+        })?;
+        rows.collect()
+    }
+
+    pub fn estatisticas_detalhadas_deck(&self, deck_id: &str) -> SqlResult<EstatisticasDetalhadas> {
+        let agora = chrono::Utc::now();
+
+        let total_revisoes: i64 = self.conn.query_row(
+            "SELECT COUNT(*) FROM historico_revisoes h
+             JOIN cartoes c ON c.id = h.cartao_id WHERE c.deck_id = ?1",
+            params![deck_id],
+            |r| r.get(0),
+        )?;
+
+        let corretas: i64 = self.conn.query_row(
+            "SELECT COUNT(*) FROM historico_revisoes h
+             JOIN cartoes c ON c.id = h.cartao_id
+             WHERE c.deck_id = ?1 AND h.avaliacao >= 2",
+            params![deck_id],
+            |r| r.get(0),
+        )?;
+
+        let taxa_retencao = if total_revisoes > 0 {
+            corretas as f64 / total_revisoes as f64
+        } else {
+            0.0
+        };
+
+        // Recuperabilidade média: R(t, S) para cada cartão com estado SRS ativo
+        let mut stmt = self.conn.prepare(
+            "SELECT s.estabilidade, s.ultima_revisao
+             FROM estado_srs s
+             JOIN cartoes c ON c.id = s.cartao_id
+             WHERE c.deck_id = ?1 AND s.estabilidade > 0",
+        )?;
+        let cards_srs: Vec<(f64, Option<String>)> = stmt
+            .query_map(params![deck_id], |row| Ok((row.get(0)?, row.get(1)?)))?
+            .collect::<SqlResult<_>>()?;
+
+        let recuperabilidade_media = if !cards_srs.is_empty() {
+            let sum: f64 = cards_srs.iter().map(|(s, ultima)| {
+                let t = ultima
+                    .as_deref()
+                    .and_then(|u| chrono::DateTime::parse_from_rfc3339(u).ok())
+                    .map(|dt| (agora - dt.with_timezone(&chrono::Utc)).num_days().max(0) as f64)
+                    .unwrap_or(0.0);
+                crate::srs::Fsrs::calcular_retencao(t, *s)
+            }).sum();
+            sum / cards_srs.len() as f64
+        } else {
+            0.0
+        };
+
+        // Revisões agrupadas por dia nos últimos 30 dias
+        let trinta_dias_atras = (agora - chrono::Duration::days(30)).to_rfc3339();
+        let mut stmt2 = self.conn.prepare(
+            "SELECT substr(h.revisado_em, 1, 10) AS dia,
+                    COUNT(*) AS total,
+                    SUM(CASE WHEN h.avaliacao >= 2 THEN 1 ELSE 0 END) AS corretas
+             FROM historico_revisoes h
+             JOIN cartoes c ON c.id = h.cartao_id
+             WHERE c.deck_id = ?1 AND h.revisado_em >= ?2
+             GROUP BY dia ORDER BY dia ASC",
+        )?;
+        let revisoes_por_dia: Vec<RevisoesDia> = stmt2
+            .query_map(params![deck_id, trinta_dias_atras], |row| {
+                Ok(RevisoesDia {
+                    data:     row.get(0)?,
+                    total:    row.get(1)?,
+                    corretas: row.get(2)?,
+                })
+            })?
+            .collect::<SqlResult<_>>()?;
+
+        let distribuicao_estados = self.estatisticas_deck(deck_id)?;
+
+        Ok(EstatisticasDetalhadas {
+            total_revisoes,
+            taxa_retencao,
+            recuperabilidade_media,
+            revisoes_por_dia,
+            distribuicao_estados,
+        })
+    }
+
     // ─── Helpers internos ─────────────────────────────────────────────────────
 
     fn buscar_alternativas(&self, cartao_id: &str) -> SqlResult<Vec<Alternativa>> {
@@ -393,6 +538,8 @@ impl Database {
             "jurisprudência" | "súmula"  => "#f59e0b",
             "constitucional"             => "#10b981",
             "penal" | "processo penal"   => "#ef4444",
+            "norma"                      => "#06b6d4",
+            "framework"                  => "#a855f7",
             _                            => "#6366f1",
         }
     }

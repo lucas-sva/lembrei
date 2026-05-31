@@ -4,7 +4,7 @@ import { ArrowLeft, PartyPopper } from 'lucide-react'
 import { useRevisaoStore } from '../stores/revisaoStore'
 import CartaoRevisao from '../components/CartaoRevisao'
 import BarraProgresso from '../components/BarraProgresso'
-import type { Avaliacao } from '../types'
+import type { Avaliacao, EstadoSrs } from '../types'
 
 export default function ReviewPage() {
   const { deckId } = useParams<{ deckId: string }>()
@@ -13,6 +13,7 @@ export default function ReviewPage() {
   const {
     iniciarSessao,
     responder,
+    avancar,
     cartaoAtual,
     progresso,
     encerrada,
@@ -26,10 +27,10 @@ export default function ReviewPage() {
     if (deckId) iniciarSessao(deckId)
   }, [deckId]) // eslint-disable-line
 
-  async function handleAvaliar(avaliacao: Avaliacao) {
+  async function handleAvaliar(avaliacao: Avaliacao): Promise<EstadoSrs> {
     const cartao = cartaoAtual()
-    if (!cartao) return
-    await responder(cartao.cartao.id, avaliacao)
+    if (!cartao) throw new Error('Sem cartão ativo')
+    return await responder(cartao.cartao.id, avaliacao)
   }
 
   if (carregando) {
@@ -71,7 +72,6 @@ export default function ReviewPage() {
 
   return (
     <div className="min-h-screen bg-slate-950 flex flex-col">
-      {/* Barra superior */}
       <header className="border-b border-slate-800 px-5 py-3 flex items-center gap-4 shrink-0">
         <button onClick={() => navigate('/')} className="btn-ghost px-2 py-1.5">
           <ArrowLeft size={16} />
@@ -88,13 +88,12 @@ export default function ReviewPage() {
         </span>
       </header>
 
-      {/* Conteúdo do cartão */}
       <main className="flex-1 overflow-y-auto px-5 py-6 max-w-2xl mx-auto w-full">
         <CartaoRevisao
           key={cartao.cartao.id}
           cartao={cartao}
           onAvaliar={handleAvaliar}
-          carregandoResposta={false}
+          onAvancar={avancar}
         />
       </main>
     </div>

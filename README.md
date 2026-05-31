@@ -11,7 +11,7 @@
   <p align="center">
     Plataforma de Aprendizado Ativo e Resolução Otimizada de Questões
     <br />
-    <a href="https://github.com/lucas-sva/Lembrei/wiki"><strong>Explore a Wiki »</strong></a>
+    <a href="docs/architecture.md"><strong>Explore a documentação »</strong></a>
     <br />
     <br />
   </p>

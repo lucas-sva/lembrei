@@ -1,21 +1,23 @@
 import { useState } from 'react'
-import type { CartaoCompleto, Avaliacao } from '../types'
-import MetaTags    from './MetaTags'
+import type { CartaoCompleto, Avaliacao, EstadoSrs } from '../types'
+import MetaTags      from './MetaTags'
 import AssertiviaItem from './Assertiva'
 import AlternativaItem from './Alternativa'
-import BotoesSrs   from './BotoesSrs'
+import BotoesSrs     from './BotoesSrs'
 
 interface CartaoRevisaoProps {
   cartao: CartaoCompleto
-  onAvaliar: (avaliacao: Avaliacao) => void
-  carregandoResposta: boolean
+  onAvaliar: (avaliacao: Avaliacao) => Promise<EstadoSrs>
+  onAvancar: () => void
 }
 
-export default function CartaoRevisao({ cartao, onAvaliar, carregandoResposta }: CartaoRevisaoProps) {
-  const [selecionada, setSelecionada]       = useState<string | null>(null)
-  const [eliminadas,  setEliminadas]        = useState<Set<string>>(new Set())
-  const [respondeu,   setRespondeu]         = useState(false)
-  const [justVisible, setJustVisible]       = useState(false)
+export default function CartaoRevisao({ cartao, onAvaliar, onAvancar }: CartaoRevisaoProps) {
+  const [selecionada,  setSelecionada]  = useState<string | null>(null)
+  const [eliminadas,   setEliminadas]   = useState<Set<string>>(new Set())
+  const [respondeu,    setRespondeu]    = useState(false)
+  const [justVisible,  setJustVisible]  = useState(false)
+  const [resultado,    setResultado]    = useState<EstadoSrs | null>(null)
+  const [avaliando,    setAvaliando]    = useState(false)
 
   const { cartao: card, alternativas, assertivas, tags } = cartao
   const alternativaCorreta = alternativas.find((a) => a.correta)
@@ -31,11 +33,7 @@ export default function CartaoRevisao({ cartao, onAvaliar, carregandoResposta }:
     if (respondeu) return
     setEliminadas((prev) => {
       const next = new Set(prev)
-      if (next.has(altId)) {
-        next.delete(altId)
-      } else {
-        next.add(altId)
-      }
+      next.has(altId) ? next.delete(altId) : next.add(altId)
       return next
     })
   }
@@ -47,11 +45,18 @@ export default function CartaoRevisao({ cartao, onAvaliar, carregandoResposta }:
     return 'neutro' as const
   }
 
+  async function handleAvaliar(avaliacao: Avaliacao): Promise<EstadoSrs> {
+    setAvaliando(true)
+    const estado = await onAvaliar(avaliacao)
+    setResultado(estado)
+    setAvaliando(false)
+    return estado
+  }
+
   const acertou = selecionada === alternativaCorreta?.id
 
   return (
     <div className="flex flex-col gap-5 animate-slide-up">
-      {/* Tags */}
       {tags.length > 0 && <MetaTags tags={tags} />}
 
       {/* Enunciado */}
@@ -61,7 +66,7 @@ export default function CartaoRevisao({ cartao, onAvaliar, carregandoResposta }:
         </p>
       </div>
 
-      {/* Assertivas (numeração romana) */}
+      {/* Assertivas */}
       {assertivas.length > 0 && (
         <div className="card-surface px-5 py-4 divide-y divide-slate-800/60">
           {assertivas.map((ass) => (
@@ -94,7 +99,7 @@ export default function CartaoRevisao({ cartao, onAvaliar, carregandoResposta }:
                         : 'bg-rose-950/60 border border-rose-700 text-rose-300'}`}
         >
           {acertou
-            ? '✓ Correto! Alternativa ' + alternativaCorreta?.letra + ' está certa.'
+            ? `✓ Correto! Alternativa ${alternativaCorreta?.letra} está certa.`
             : `✗ Incorreto. A alternativa correta é ${alternativaCorreta?.letra}.`}
         </div>
       )}
@@ -111,20 +116,21 @@ export default function CartaoRevisao({ cartao, onAvaliar, carregandoResposta }:
         </div>
       )}
 
-      {/* Botão para revelar justificativa (quando respondeu mas ainda não está visível) */}
       {respondeu && card.justificativa && !justVisible && (
-        <button
-          onClick={() => setJustVisible(true)}
-          className="btn-ghost w-full py-2 text-sm"
-        >
+        <button onClick={() => setJustVisible(true)} className="btn-ghost w-full py-2 text-sm">
           Ver justificativa
         </button>
       )}
 
-      {/* Botões SRS — aparecem após responder */}
+      {/* Botões SRS */}
       {respondeu && (
         <div className="animate-slide-up">
-          <BotoesSrs onAvaliar={onAvaliar} carregando={carregandoResposta} />
+          <BotoesSrs
+            onAvaliar={handleAvaliar}
+            onAvancar={onAvancar}
+            carregando={avaliando}
+            resultado={resultado}
+          />
         </div>
       )}
     </div>

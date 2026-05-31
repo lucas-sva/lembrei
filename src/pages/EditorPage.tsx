@@ -1,10 +1,9 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { ArrowLeft, Plus, Trash2 } from 'lucide-react'
 import { api } from '../lib/tauri'
 import type { CriarAlternativaInput, CriarAssertiviaInput } from '../types'
 
-const LETRAS = ['A', 'B', 'C', 'D', 'E'] as const
 const ROMANOS = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII'] as const
 
 interface AltForm {
@@ -20,15 +19,17 @@ interface AssForm {
 }
 
 export default function EditorPage() {
-  const { deckId } = useParams<{ deckId: string }>()
-  const navigate   = useNavigate()
+  const { deckId, cartaoId } = useParams<{ deckId: string; cartaoId?: string }>()
+  const navigate              = useNavigate()
+  const editando              = Boolean(cartaoId)
 
-  const [enunciado,    setEnunciado]    = useState('')
-  const [justificativa,setJustificativa]= useState('')
-  const [tags,         setTags]         = useState<string[]>([])
-  const [tagInput,     setTagInput]     = useState('')
-  const [salvando,     setSalvando]     = useState(false)
-  const [erro,         setErro]         = useState<string | null>(null)
+  const [enunciado,     setEnunciado]     = useState('')
+  const [justificativa, setJustificativa] = useState('')
+  const [tags,          setTags]          = useState<string[]>([])
+  const [tagInput,      setTagInput]      = useState('')
+  const [salvando,      setSalvando]      = useState(false)
+  const [erro,          setErro]          = useState<string | null>(null)
+  const [carregando,    setCarregando]    = useState(editando)
 
   const [alternativas, setAlternativas] = useState<AltForm[]>([
     { letra: 'A', texto: '', correta: false },
@@ -40,6 +41,28 @@ export default function EditorPage() {
 
   const [assertivas, setAssertivas] = useState<AssForm[]>([])
 
+  // Carrega dados do cartão existente em modo de edição
+  useEffect(() => {
+    if (!cartaoId) return
+    api.cartoes.buscarCompleto(cartaoId).then((c) => {
+      setEnunciado(c.cartao.enunciado)
+      setJustificativa(c.cartao.justificativa ?? '')
+      setTags(c.tags.map((t) => t.nome))
+      if (c.alternativas.length > 0) {
+        setAlternativas(
+          c.alternativas.map((a) => ({ letra: a.letra, texto: a.texto, correta: a.correta }))
+        )
+      }
+      setAssertivas(
+        c.assertivas.map((a) => ({ numeroRomano: a.numeroRomano, texto: a.texto, correta: a.correta }))
+      )
+      setCarregando(false)
+    }).catch((e) => {
+      setErro(String(e))
+      setCarregando(false)
+    })
+  }, [cartaoId])
+
   function adicionarAssertiva() {
     const idx = assertivas.length
     if (idx >= ROMANOS.length) return
@@ -47,7 +70,9 @@ export default function EditorPage() {
   }
 
   function removerAssertiva(idx: number) {
-    setAssertivas((prev) => prev.filter((_, i) => i !== idx).map((a, i) => ({ ...a, numeroRomano: ROMANOS[i] })))
+    setAssertivas((prev) =>
+      prev.filter((_, i) => i !== idx).map((a, i) => ({ ...a, numeroRomano: ROMANOS[i] }))
+    )
   }
 
   function adicionarTag() {
@@ -64,30 +89,38 @@ export default function EditorPage() {
     const altsValidas = alternativas.filter((a) => a.texto.trim())
     const corretas    = altsValidas.filter((a) => a.correta)
 
-    if (!enunciado.trim()) { setErro('O enunciado é obrigatório.'); return }
-    if (altsValidas.length < 2) { setErro('Adicione pelo menos 2 alternativas.'); return }
-    if (corretas.length !== 1) { setErro('Marque exatamente uma alternativa correta.'); return }
+    if (!enunciado.trim())         { setErro('O enunciado é obrigatório.'); return }
+    if (altsValidas.length < 2)    { setErro('Adicione pelo menos 2 alternativas.'); return }
+    if (corretas.length !== 1)     { setErro('Marque exatamente uma alternativa correta.'); return }
 
     setSalvando(true)
     try {
       const altsInput: CriarAlternativaInput[] = altsValidas.map((a, i) => ({
-        letra: a.letra,
-        texto: a.texto.trim(),
-        correta: a.correta,
-        ordem: i,
+        letra: a.letra, texto: a.texto.trim(), correta: a.correta, ordem: i,
       }))
       const assInput: CriarAssertiviaInput[] = assertivas
         .filter((a) => a.texto.trim())
         .map((a, i) => ({ numeroRomano: a.numeroRomano, texto: a.texto.trim(), correta: a.correta, ordem: i }))
 
-      await api.cartoes.criar({
-        deckId: deckId!,
-        enunciado: enunciado.trim(),
-        justificativa: justificativa.trim() || null,
-        alternativas: altsInput,
-        assertivas:   assInput,
-        tags,
-      })
+      if (editando && cartaoId) {
+        await api.cartoes.atualizar({
+          id: cartaoId,
+          enunciado: enunciado.trim(),
+          justificativa: justificativa.trim() || null,
+          alternativas: altsInput,
+          assertivas:   assInput,
+          tags,
+        })
+      } else {
+        await api.cartoes.criar({
+          deckId: deckId!,
+          enunciado: enunciado.trim(),
+          justificativa: justificativa.trim() || null,
+          alternativas: altsInput,
+          assertivas:   assInput,
+          tags,
+        })
+      }
       navigate(-1)
     } catch (e) {
       setErro(String(e))
@@ -95,14 +128,23 @@ export default function EditorPage() {
     }
   }
 
+  if (carregando) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex items-center justify-center text-slate-500">
+        Carregando…
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen bg-slate-950 pb-16">
-      {/* Header */}
       <header className="border-b border-slate-800 px-5 py-3 flex items-center gap-3 sticky top-0 bg-slate-950 z-10">
         <button onClick={() => navigate(-1)} className="btn-ghost px-2 py-1.5">
           <ArrowLeft size={16} />
         </button>
-        <h1 className="text-sm font-semibold text-slate-200">Novo Cartão</h1>
+        <h1 className="text-sm font-semibold text-slate-200">
+          {editando ? 'Editar Cartão' : 'Novo Cartão'}
+        </h1>
       </header>
 
       <form onSubmit={handleSalvar} className="max-w-2xl mx-auto px-5 py-6 flex flex-col gap-6">
@@ -209,7 +251,7 @@ export default function EditorPage() {
               value={tagInput}
               onChange={(e) => setTagInput(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); adicionarTag() } }}
-              placeholder="Lei, Doutrina, Jurisprudência…"
+              placeholder="Lei, Framework, Norma…"
               className="input-field flex-1"
             />
             <button type="button" onClick={adicionarTag} className="btn-ghost px-3">
@@ -232,20 +274,18 @@ export default function EditorPage() {
           )}
         </div>
 
-        {/* Erro */}
         {erro && (
           <p className="text-sm text-rose-400 bg-rose-950/40 border border-rose-800 rounded-lg px-4 py-2">
             {erro}
           </p>
         )}
 
-        {/* Ações */}
         <div className="flex gap-3 justify-end">
           <button type="button" onClick={() => navigate(-1)} className="btn-ghost">
             Cancelar
           </button>
           <button type="submit" disabled={salvando} className="btn-primary">
-            {salvando ? 'Salvando…' : 'Salvar Cartão'}
+            {salvando ? 'Salvando…' : editando ? 'Salvar Alterações' : 'Salvar Cartão'}
           </button>
         </div>
       </form>

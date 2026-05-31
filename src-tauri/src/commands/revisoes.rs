@@ -1,4 +1,4 @@
-use crate::models::{EstadoSrs, RegistrarRevisaoInput};
+use crate::models::{EstadoSrs, EstatisticasDetalhadas, HistoricoRevisao, RegistrarRevisaoInput};
 use crate::srs::{Avaliacao, Fsrs};
 use crate::AppState;
 use tauri::State;
@@ -35,8 +35,7 @@ pub fn registrar_revisao(
         (proxima - ultima).num_days()
     };
 
-    db.salvar_estado_srs(&novo_estado)
-        .map_err(|e| e.to_string())?;
+    db.salvar_estado_srs(&novo_estado).map_err(|e| e.to_string())?;
 
     db.registrar_historico(
         &input.cartao_id,
@@ -55,12 +54,24 @@ pub fn registrar_revisao(
 pub fn historico_revisoes(
     state: State<'_, AppState>,
     cartao_id: String,
-) -> Result<Vec<serde_json::Value>, String> {
-    let db = state.db.lock().unwrap();
-    let conn = &db;
+) -> Result<Vec<HistoricoRevisao>, String> {
+    state
+        .db
+        .lock()
+        .unwrap()
+        .historico_por_cartao(&cartao_id)
+        .map_err(|e| e.to_string())
+}
 
-    // Acesso direto via método público seria ideal; aqui retornamos JSON bruto
-    // para evitar criar outro struct de histórico neste momento.
-    let _ = (conn, cartao_id);
-    Ok(vec![])
+#[tauri::command]
+pub fn estatisticas_detalhadas_deck(
+    state: State<'_, AppState>,
+    deck_id: String,
+) -> Result<EstatisticasDetalhadas, String> {
+    state
+        .db
+        .lock()
+        .unwrap()
+        .estatisticas_detalhadas_deck(&deck_id)
+        .map_err(|e| e.to_string())
 }

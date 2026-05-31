@@ -3,7 +3,7 @@
 ## Diagrama de Entidade-Relacionamento
 
 ```
-┌──────────┐         ┌──────────────┐         ┌───────────────┐
+┌──────────┐         ┌──────────────┐          ┌───────────────┐
 │  decks   │ 1     N │   cartoes    │ 1     N  │  alternativas │
 │──────────│─────────│──────────────│──────────│───────────────│
 │ id (PK)  │         │ id (PK)      │          │ id (PK)       │
@@ -26,7 +26,7 @@
                      │──────────────│          └───────────────┘
                      │ cartao_id(PK)│
                      │ estado       │          ┌───────────────┐
-                     │ estabilidade │    N   N  │     tags      │
+                     │ estabilidade │    N   N │     tags      │
                      │ dificuldade  │──────────│───────────────│
                      │ ultima_rev.  │ cartao_  │ id (PK)       │
                      │ proxima_rev. │ tags     │ nome (UNIQUE) │

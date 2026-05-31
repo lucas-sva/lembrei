@@ -34,19 +34,25 @@ export const useDecksStore = create<DecksState>((set, get) => ({
     try {
       const stats = await api.decks.estatisticas(deckId)
       set((s) => ({ estatisticas: { ...s.estatisticas, [deckId]: stats } }))
-    } catch {
-      // Silencioso — estatísticas são complementares
+    } catch (_) {
+      // silencia — estatísticas são não-críticas
     }
   },
 
   criarDeck: async (nome, descricao) => {
-    const deck = await api.decks.criar({ nome, descricao: descricao ?? null })
+    const deck = await api.decks.criar({ nome, descricao })
     set((s) => ({ decks: [deck, ...s.decks] }))
     return deck
   },
 
   deletarDeck: async (id) => {
     await api.decks.deletar(id)
-    set((s) => ({ decks: s.decks.filter((d) => d.id !== id) }))
+    set((s) => ({
+      decks:        s.decks.filter((d) => d.id !== id),
+      estatisticas: Object.fromEntries(
+        Object.entries(s.estatisticas).filter(([k]) => k !== id)
+      ),
+    }))
+    get().carregarDecks()
   },
 }))
