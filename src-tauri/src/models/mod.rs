@@ -2,10 +2,23 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct Preparacao {
+    pub id: String,
+    pub nome: String,
+    pub descricao: Option<String>,
+    pub banca: Option<String>,
+    pub cargo: Option<String>,
+    pub criado_em: String,
+    pub atualizado_em: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Deck {
     pub id: String,
     pub nome: String,
     pub descricao: Option<String>,
+    pub preparacao_id: Option<String>,
     pub criado_em: String,
     pub atualizado_em: String,
 }
@@ -120,9 +133,29 @@ pub struct EstatisticasDetalhadas {
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct CriarPreparacaoInput {
+    pub nome: String,
+    pub descricao: Option<String>,
+    pub banca: Option<String>,
+    pub cargo: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AtualizarPreparacaoInput {
+    pub id: String,
+    pub nome: String,
+    pub descricao: Option<String>,
+    pub banca: Option<String>,
+    pub cargo: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct CriarDeckInput {
     pub nome: String,
     pub descricao: Option<String>,
+    pub preparacao_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]

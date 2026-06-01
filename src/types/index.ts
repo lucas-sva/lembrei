@@ -1,9 +1,20 @@
 // Espelha as structs Rust (serde rename_all = "camelCase")
 
+export interface Preparacao {
+  id: string
+  nome: string
+  descricao: string | null
+  banca: string | null
+  cargo: string | null
+  criadoEm: string
+  atualizadoEm: string
+}
+
 export interface Deck {
   id: string
   nome: string
   descricao: string | null
+  preparacaoId: string | null
   criadoEm: string
   atualizadoEm: string
 }
@@ -96,9 +107,25 @@ export interface EstatisticasDetalhadas {
 
 // ─── Inputs para comandos Tauri ──────────────────────────────────────────────
 
+export interface CriarPreparacaoInput {
+  nome: string
+  descricao?: string | null
+  banca?: string | null
+  cargo?: string | null
+}
+
+export interface AtualizarPreparacaoInput {
+  id: string
+  nome: string
+  descricao?: string | null
+  banca?: string | null
+  cargo?: string | null
+}
+
 export interface CriarDeckInput {
   nome: string
   descricao?: string | null
+  preparacaoId?: string | null
 }
 
 export interface AtualizarDeckInput {

@@ -8,6 +8,24 @@ pub fn listar_decks(state: State<'_, AppState>) -> Result<Vec<Deck>, String> {
 }
 
 #[tauri::command]
+pub fn listar_decks_da_preparacao(
+    state: State<'_, AppState>,
+    preparacao_id: String,
+) -> Result<Vec<Deck>, String> {
+    state
+        .db
+        .lock()
+        .unwrap()
+        .listar_decks_da_preparacao(&preparacao_id)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn buscar_deck(state: State<'_, AppState>, id: String) -> Result<Option<Deck>, String> {
+    state.db.lock().unwrap().buscar_deck(&id).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 pub fn criar_deck(state: State<'_, AppState>, input: CriarDeckInput) -> Result<Deck, String> {
     state.db.lock().unwrap().criar_deck(&input).map_err(|e| e.to_string())
 }

@@ -37,59 +37,93 @@ A arquitetura do sistema foi projetada para garantir uma experiência Desktop fl
 
 * **Persistência de Dados:** **SQLite** com `rusqlite` (feature `bundled` — sem dependência externa do sistema). O banco é armazenado localmente no diretório de dados do app (`AppData` no Windows). WAL mode habilitado para escritas não bloqueantes e `foreign_keys=ON` para integridade referencial garantida.
 
+### Modelo de dados
+
+```
+preparacoes          ← contexto de um concurso/prova
+  └── decks          ← agrupamento temático dentro da preparação
+        └── cartoes  ← questões de múltipla escolha ou assertivas
+              ├── alternativas
+              ├── assertivas
+              ├── tags
+              ├── estado_srs       ← estado FSRS por cartão
+              └── historico_revisoes
+```
+
+**Migração automática:** o banco é migrado automaticamente ao iniciar. Instalações anteriores (sem `preparacoes`) recebem automaticamente uma preparação "Geral" com todos os decks existentes atribuídos a ela.
+
+### Rotas
+
+| Rota | Tela |
+|------|------|
+| `/` | PreparacoesPage — lista de preparações |
+| `/preparacao/:prepId` | DecksPage — decks da preparação |
+| `/painel/:deckId` | PainelPage — cartões do deck com filtros SRS |
+| `/editor/:deckId` | EditorPage — criar cartão |
+| `/editor/:deckId/:cartaoId` | EditorPage — editar cartão existente |
+| `/revisar/:deckId` | ReviewPage — sessão de revisão espaçada |
+| `/importar/:deckId` | ImportarPage — gerador de prompt + importação JSON |
+| `/estatisticas` | EstatisticasPage — gráficos e métricas |
+
+### Comandos Tauri (IPC)
+
+| Comando | Descrição |
+|---------|-----------|
+| `listar_preparacoes` / `criar_preparacao` / `atualizar_preparacao` / `deletar_preparacao` / `buscar_preparacao` | CRUD de preparações |
+| `listar_decks` / `listar_decks_da_preparacao` / `buscar_deck` / `criar_deck` / `atualizar_deck` / `deletar_deck` / `estatisticas_deck` | CRUD e stats de decks |
+| `listar_cartoes_completos_do_deck` / `buscar_cartao_completo` / `criar_cartao` / `atualizar_cartao` / `deletar_cartao` / `buscar_cartoes_para_revisao` / `importar_cartoes_lote` | CRUD de cartões |
+| `registrar_revisao` / `historico_revisoes` / `estatisticas_detalhadas_deck` | Revisões e métricas FSRS |
+
 ### Estrutura da Solução
 
 ```plaintext
 lembrei/
-├── src/                        # Frontend React + TypeScript
-│   ├── components/             # Componentes de UI reutilizáveis
-│   │   ├── Alternativa.tsx     # Bloco interativo com ação "tesoura"
-│   │   ├── Assertiva.tsx       # Item de julgamento (numeração romana)
-│   │   ├── BarraProgresso.tsx  # Progresso da sessão de revisão
-│   │   ├── BotoesSrs.tsx       # Botões de avaliação SRS (Esqueci/Bom/Fácil)
-│   │   ├── CartaoRevisao.tsx   # Orquestrador da experiência de revisão
-│   │   └── MetaTags.tsx        # Chips visuais de categorização
+├── src/                            # Frontend React + TypeScript
+│   ├── components/                 # Componentes de UI reutilizáveis
+│   │   ├── Alternativa.tsx
+│   │   ├── Assertiva.tsx
+│   │   ├── BarraProgresso.tsx
+│   │   ├── BotoesSrs.tsx
+│   │   ├── CartaoRevisao.tsx
+│   │   └── charts/                 # BarChart, DonutChart, LineChart, StudyCalendar
 │   ├── lib/
-│   │   └── tauri.ts            # Wrapper tipado para invoke do Tauri
-│   ├── pages/                  # Telas da aplicação
-│   │   ├── DecksPage.tsx
-│   │   ├── EditorPage.tsx
-│   │   └── ReviewPage.tsx
-│   ├── stores/                 # Estado global via Zustand
-│   │   ├── decksStore.ts
-│   │   └── revisaoStore.ts
+│   │   └── tauri.ts                # Wrapper tipado para invoke do Tauri
+│   ├── pages/
+│   │   ├── PreparacoesPage.tsx     # Home — lista de preparações/concursos
+│   │   ├── DecksPage.tsx           # Decks dentro de uma preparação
+│   │   ├── PainelPage.tsx          # Gestão de cartões com filtros SRS
+│   │   ├── EditorPage.tsx          # Criar / editar cartão
+│   │   ├── ReviewPage.tsx          # Sessão de revisão espaçada
+│   │   ├── ImportarPage.tsx        # Gerador de prompt IA + importação JSON
+│   │   └── EstatisticasPage.tsx    # Métricas e gráficos por deck
+│   ├── stores/
+│   │   ├── preparacoesStore.ts     # Estado global de preparações
+│   │   ├── decksStore.ts           # Estado global de decks (por preparação)
+│   │   └── revisaoStore.ts         # Estado da sessão de revisão ativa
 │   ├── types/
-│   │   └── index.ts            # Contratos de dados TypeScript
+│   │   └── index.ts                # Contratos de dados TypeScript
 │   ├── App.tsx
 │   └── main.tsx
-├── src-tauri/                  # Backend Rust
+├── src-tauri/                      # Backend Rust
 │   ├── src/
-│   │   ├── commands/           # Handlers IPC expostos ao frontend
-│   │   │   ├── cartoes.rs
+│   │   ├── commands/
+│   │   │   ├── preparacoes.rs      # CRUD de preparações
 │   │   │   ├── decks.rs
+│   │   │   ├── cartoes.rs
 │   │   │   └── revisoes.rs
 │   │   ├── database/
-│   │   │   ├── mod.rs          # Camada de acesso a dados (SQLite)
-│   │   │   └── schema.sql      # DDL do banco de dados
+│   │   │   ├── mod.rs              # Camada de acesso a dados (SQLite)
+│   │   │   └── schema.sql          # DDL — CREATE TABLE IF NOT EXISTS
 │   │   ├── models/
-│   │   │   └── mod.rs          # Structs do domínio (Deck, Cartao, etc.)
+│   │   │   └── mod.rs              # Structs do domínio
 │   │   ├── srs/
-│   │   │   └── mod.rs          # Implementação do algoritmo FSRS-4.5
-│   │   ├── lib.rs              # Ponto de entrada da lib Tauri
+│   │   │   └── mod.rs              # Algoritmo FSRS-4.5
+│   │   ├── lib.rs
 │   │   └── main.rs
-│   ├── capabilities/
-│   │   └── default.json        # Permissões Tauri v2
 │   ├── Cargo.toml
 │   └── tauri.conf.json
-├── docs/
-│   ├── architecture.md         # Decisões técnicas e justificativas
-│   └── data-model.md           # Modelagem de dados e relacionamentos
-├── assets/
-│   └── logo.png
-├── CODE_OF_CONDUCT.md
-├── CONTRIBUTING.md
-├── SECURITY.md
-└── README.md
+└── assets/
+    └── logo.png
 ```
 
 ### Built With

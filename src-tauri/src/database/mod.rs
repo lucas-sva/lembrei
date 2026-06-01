@@ -12,6 +12,7 @@ impl Database {
         let conn = Connection::open(path)?;
         let db = Database { conn };
         db.inicializar_schema()?;
+        db.migrar()?;
         Ok(db)
     }
 
@@ -19,36 +20,184 @@ impl Database {
         self.conn.execute_batch(include_str!("schema.sql"))
     }
 
+    // Migrações incrementais — cada ALTER TABLE ignora erro se coluna já existe
+    fn migrar(&self) -> SqlResult<()> {
+        // Adiciona preparacao_id à tabela decks se ainda não existir
+        let _ = self.conn.execute(
+            "ALTER TABLE decks ADD COLUMN preparacao_id TEXT REFERENCES preparacoes(id) ON DELETE SET NULL",
+            [],
+        );
+        // Índice criado após garantir que a coluna existe
+        let _ = self.conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_decks_preparacao_id ON decks(preparacao_id)",
+            [],
+        );
+
+        // Migra decks sem preparação para uma preparação padrão "Geral"
+        let orphans: i64 = self.conn.query_row(
+            "SELECT COUNT(*) FROM decks WHERE preparacao_id IS NULL",
+            [],
+            |r| r.get(0),
+        ).unwrap_or(0);
+
+        if orphans > 0 {
+            let prep_id = uuid::Uuid::new_v4().to_string();
+            let agora = chrono::Utc::now().to_rfc3339();
+            self.conn.execute(
+                "INSERT OR IGNORE INTO preparacoes (id, nome, descricao, banca, cargo, criado_em, atualizado_em)
+                 VALUES (?1, ?2, NULL, NULL, NULL, ?3, ?3)",
+                params![prep_id, "Geral", agora],
+            )?;
+            self.conn.execute(
+                "UPDATE decks SET preparacao_id = ?1 WHERE preparacao_id IS NULL",
+                params![prep_id],
+            )?;
+        }
+
+        Ok(())
+    }
+
+    // ─── Preparações ──────────────────────────────────────────────────────────
+
+    pub fn listar_preparacoes(&self) -> SqlResult<Vec<crate::models::Preparacao>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT id, nome, descricao, banca, cargo, criado_em, atualizado_em
+             FROM preparacoes ORDER BY criado_em DESC",
+        )?;
+        let rows = stmt.query_map([], |row| {
+            Ok(crate::models::Preparacao {
+                id:            row.get(0)?,
+                nome:          row.get(1)?,
+                descricao:     row.get(2)?,
+                banca:         row.get(3)?,
+                cargo:         row.get(4)?,
+                criado_em:     row.get(5)?,
+                atualizado_em: row.get(6)?,
+            })
+        })?;
+        rows.collect()
+    }
+
+    pub fn criar_preparacao(&self, input: &crate::models::CriarPreparacaoInput) -> SqlResult<crate::models::Preparacao> {
+        let id = uuid::Uuid::new_v4().to_string();
+        let agora = chrono::Utc::now().to_rfc3339();
+        self.conn.execute(
+            "INSERT INTO preparacoes (id, nome, descricao, banca, cargo, criado_em, atualizado_em)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?6)",
+            params![id, input.nome, input.descricao, input.banca, input.cargo, agora],
+        )?;
+        Ok(crate::models::Preparacao {
+            id,
+            nome:          input.nome.clone(),
+            descricao:     input.descricao.clone(),
+            banca:         input.banca.clone(),
+            cargo:         input.cargo.clone(),
+            criado_em:     agora.clone(),
+            atualizado_em: agora,
+        })
+    }
+
+    pub fn atualizar_preparacao(&self, input: &crate::models::AtualizarPreparacaoInput) -> SqlResult<usize> {
+        let agora = chrono::Utc::now().to_rfc3339();
+        self.conn.execute(
+            "UPDATE preparacoes SET nome = ?1, descricao = ?2, banca = ?3, cargo = ?4, atualizado_em = ?5
+             WHERE id = ?6",
+            params![input.nome, input.descricao, input.banca, input.cargo, agora, input.id],
+        )
+    }
+
+    pub fn deletar_preparacao(&self, id: &str) -> SqlResult<usize> {
+        self.conn.execute("DELETE FROM preparacoes WHERE id = ?1", params![id])
+    }
+
+    pub fn buscar_preparacao(&self, id: &str) -> SqlResult<Option<crate::models::Preparacao>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT id, nome, descricao, banca, cargo, criado_em, atualizado_em
+             FROM preparacoes WHERE id = ?1",
+        )?;
+        let mut rows = stmt.query_map(params![id], |row| {
+            Ok(crate::models::Preparacao {
+                id:            row.get(0)?,
+                nome:          row.get(1)?,
+                descricao:     row.get(2)?,
+                banca:         row.get(3)?,
+                cargo:         row.get(4)?,
+                criado_em:     row.get(5)?,
+                atualizado_em: row.get(6)?,
+            })
+        })?;
+        rows.next().transpose()
+    }
+
     // ─── Decks ────────────────────────────────────────────────────────────────
 
     pub fn listar_decks(&self) -> SqlResult<Vec<Deck>> {
         let mut stmt = self.conn.prepare(
-            "SELECT id, nome, descricao, criado_em, atualizado_em FROM decks ORDER BY criado_em DESC",
+            "SELECT id, nome, descricao, preparacao_id, criado_em, atualizado_em
+             FROM decks ORDER BY criado_em DESC",
         )?;
         let rows = stmt.query_map([], |row| {
             Ok(Deck {
                 id:            row.get(0)?,
                 nome:          row.get(1)?,
                 descricao:     row.get(2)?,
-                criado_em:     row.get(3)?,
-                atualizado_em: row.get(4)?,
+                preparacao_id: row.get(3)?,
+                criado_em:     row.get(4)?,
+                atualizado_em: row.get(5)?,
             })
         })?;
         rows.collect()
+    }
+
+    pub fn listar_decks_da_preparacao(&self, preparacao_id: &str) -> SqlResult<Vec<Deck>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT id, nome, descricao, preparacao_id, criado_em, atualizado_em
+             FROM decks WHERE preparacao_id = ?1 ORDER BY criado_em DESC",
+        )?;
+        let rows = stmt.query_map(params![preparacao_id], |row| {
+            Ok(Deck {
+                id:            row.get(0)?,
+                nome:          row.get(1)?,
+                descricao:     row.get(2)?,
+                preparacao_id: row.get(3)?,
+                criado_em:     row.get(4)?,
+                atualizado_em: row.get(5)?,
+            })
+        })?;
+        rows.collect()
+    }
+
+    pub fn buscar_deck(&self, id: &str) -> SqlResult<Option<Deck>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT id, nome, descricao, preparacao_id, criado_em, atualizado_em
+             FROM decks WHERE id = ?1",
+        )?;
+        let mut rows = stmt.query_map(params![id], |row| {
+            Ok(Deck {
+                id:            row.get(0)?,
+                nome:          row.get(1)?,
+                descricao:     row.get(2)?,
+                preparacao_id: row.get(3)?,
+                criado_em:     row.get(4)?,
+                atualizado_em: row.get(5)?,
+            })
+        })?;
+        rows.next().transpose()
     }
 
     pub fn criar_deck(&self, input: &CriarDeckInput) -> SqlResult<Deck> {
         let id = uuid::Uuid::new_v4().to_string();
         let agora = chrono::Utc::now().to_rfc3339();
         self.conn.execute(
-            "INSERT INTO decks (id, nome, descricao, criado_em, atualizado_em)
-             VALUES (?1, ?2, ?3, ?4, ?4)",
-            params![id, input.nome, input.descricao, agora],
+            "INSERT INTO decks (id, nome, descricao, preparacao_id, criado_em, atualizado_em)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?5)",
+            params![id, input.nome, input.descricao, input.preparacao_id, agora],
         )?;
         Ok(Deck {
             id,
             nome:          input.nome.clone(),
             descricao:     input.descricao.clone(),
+            preparacao_id: input.preparacao_id.clone(),
             criado_em:     agora.clone(),
             atualizado_em: agora,
         })

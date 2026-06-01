@@ -30,7 +30,14 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            commands::preparacoes::listar_preparacoes,
+            commands::preparacoes::criar_preparacao,
+            commands::preparacoes::atualizar_preparacao,
+            commands::preparacoes::deletar_preparacao,
+            commands::preparacoes::buscar_preparacao,
             commands::decks::listar_decks,
+            commands::decks::listar_decks_da_preparacao,
+            commands::decks::buscar_deck,
             commands::decks::criar_deck,
             commands::decks::atualizar_deck,
             commands::decks::deletar_deck,

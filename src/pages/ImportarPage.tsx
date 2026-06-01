@@ -192,8 +192,22 @@ export default function ImportarPage() {
   const [importSuccess, setImportSuccess] = useState<number | null>(null)
 
   useEffect(() => {
-    api.decks.listar().then((lista) => {
-      setDeckNome(lista.find((d) => d.id === deckId)?.nome ?? '')
+    if (!deckId) return
+    api.decks.buscar(deckId).then(async (deck) => {
+      if (!deck) return
+      setDeckNome(deck.nome)
+      // Pré-preenche cargo/banca a partir da preparação
+      if (deck.preparacaoId) {
+        const prep = await api.preparacoes.buscar(deck.preparacaoId)
+        if (prep) {
+          if (prep.banca) {
+            const bancaValida = ['FCC', 'CESPE/CEBRASPE', 'VUNESP', 'FGV', 'AOCP', 'Quadrix'] as const
+            const match = bancaValida.find((b) => b.toLowerCase() === prep.banca!.toLowerCase())
+            if (match) setBanca(match)
+          }
+          if (prep.cargo) setCargo(prep.cargo)
+        }
+      }
     })
   }, [deckId])
 
@@ -239,8 +253,8 @@ export default function ImportarPage() {
 
   return (
     <div className="min-h-screen bg-slate-950 pb-16">
-      <header className="border-b border-slate-800 px-5 py-3 flex items-center gap-3 sticky top-0 bg-slate-950 z-10">
-        <button onClick={() => navigate(-1)} className="btn-ghost px-2 py-1.5">
+      <header className="border-b border-slate-800 px-5 py-3 flex items-center gap-3 sticky top-0 bg-slate-950/95 backdrop-blur z-10">
+        <button onClick={() => navigate(`/painel/${deckId}`)} className="btn-ghost px-2 py-1.5">
           <ArrowLeft size={16} />
         </button>
         <div className="flex-1 min-w-0">

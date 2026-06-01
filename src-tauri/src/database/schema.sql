@@ -1,12 +1,23 @@
 PRAGMA journal_mode = WAL;
 PRAGMA foreign_keys = ON;
 
-CREATE TABLE IF NOT EXISTS decks (
-    id           TEXT PRIMARY KEY,
-    nome         TEXT NOT NULL,
-    descricao    TEXT,
-    criado_em    TEXT NOT NULL,
+CREATE TABLE IF NOT EXISTS preparacoes (
+    id            TEXT PRIMARY KEY,
+    nome          TEXT NOT NULL,
+    descricao     TEXT,
+    banca         TEXT,
+    cargo         TEXT,
+    criado_em     TEXT NOT NULL,
     atualizado_em TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS decks (
+    id             TEXT PRIMARY KEY,
+    nome           TEXT NOT NULL,
+    descricao      TEXT,
+    preparacao_id  TEXT REFERENCES preparacoes(id) ON DELETE SET NULL,
+    criado_em      TEXT NOT NULL,
+    atualizado_em  TEXT NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS cartoes (

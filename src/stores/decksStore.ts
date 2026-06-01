@@ -8,10 +8,10 @@ interface DecksState {
   carregando: boolean
   erro: string | null
 
-  carregarDecks: () => Promise<void>
+  carregarDecks: (preparacaoId: string) => Promise<void>
   carregarEstatisticas: (deckId: string) => Promise<void>
-  criarDeck: (nome: string, descricao?: string) => Promise<Deck>
-  deletarDeck: (id: string) => Promise<void>
+  criarDeck: (nome: string, preparacaoId: string, descricao?: string) => Promise<Deck>
+  deletarDeck: (id: string, preparacaoId: string) => Promise<void>
 }
 
 export const useDecksStore = create<DecksState>((set, get) => ({
@@ -20,10 +20,10 @@ export const useDecksStore = create<DecksState>((set, get) => ({
   carregando:   false,
   erro:         null,
 
-  carregarDecks: async () => {
+  carregarDecks: async (preparacaoId) => {
     set({ carregando: true, erro: null })
     try {
-      const decks = await api.decks.listar()
+      const decks = await api.decks.listarDaPreparacao(preparacaoId)
       set({ decks, carregando: false })
     } catch (e) {
       set({ erro: String(e), carregando: false })
@@ -34,18 +34,18 @@ export const useDecksStore = create<DecksState>((set, get) => ({
     try {
       const stats = await api.decks.estatisticas(deckId)
       set((s) => ({ estatisticas: { ...s.estatisticas, [deckId]: stats } }))
-    } catch (_) {
-      // silencia — estatísticas são não-críticas
+    } catch {
+      // estatísticas são não-críticas
     }
   },
 
-  criarDeck: async (nome, descricao) => {
-    const deck = await api.decks.criar({ nome, descricao })
+  criarDeck: async (nome, preparacaoId, descricao) => {
+    const deck = await api.decks.criar({ nome, descricao, preparacaoId })
     set((s) => ({ decks: [deck, ...s.decks] }))
     return deck
   },
 
-  deletarDeck: async (id) => {
+  deletarDeck: async (id, preparacaoId) => {
     await api.decks.deletar(id)
     set((s) => ({
       decks:        s.decks.filter((d) => d.id !== id),
@@ -53,6 +53,6 @@ export const useDecksStore = create<DecksState>((set, get) => ({
         Object.entries(s.estatisticas).filter(([k]) => k !== id)
       ),
     }))
-    get().carregarDecks()
+    get().carregarDecks(preparacaoId)
   },
 }))
