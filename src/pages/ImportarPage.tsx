@@ -54,6 +54,7 @@ ${nivel} — exija raciocínio analítico, não apenas memorização direta
 6. Para TI: cite normas, frameworks e leis pelos nomes técnicos (ISO/IEC 27001:2024, ITIL v4, LGPD, Lei nº 14.133/2021)
 7. Sem negrito/itálico no enunciado e alternativas; use-os livremente na justificativa
 8. Tags: categorias relevantes como Norma, Framework, Lei, Conceito, Protocolo, etc.
+9. Quando o enunciado apresentar múltiplas afirmativas numeradas (I, II, III...), liste-as no campo "assertivas" com o texto de cada afirmativa e se ela é verdadeira ou falsa. Para questões sem afirmativas, omita o campo "assertivas" ou envie como array vazio [].
 
 ## Formato de saída
 Retorne SOMENTE um JSON válido, sem texto antes ou depois, sem markdown code fences:
@@ -61,11 +62,15 @@ Retorne SOMENTE um JSON válido, sem texto antes ou depois, sem markdown code fe
 {
   "cartoes": [
     {
-      "enunciado": "Texto completo do enunciado com o comando ao final (ex: '...assinale a alternativa correta.')",
+      "enunciado": "Texto do enunciado SEM as afirmativas I, II, III (apenas o caput e o comando, ex: 'Sobre X, considere as afirmativas. Está correto o que se afirma em:')",
+      "assertivas": [
+        { "numeroRomano": "I",  "texto": "Texto da afirmativa I.",  "correta": true  },
+        { "numeroRomano": "II", "texto": "Texto da afirmativa II.", "correta": false }
+      ],
       "alternativas": [
         { "letra": "A", "texto": "...", "correta": false },
         { "letra": "B", "texto": "...", "correta": false },
-        { "letra": "C", "texto": "...", "correta": true },
+        { "letra": "C", "texto": "...", "correta": true  },
         { "letra": "D", "texto": "...", "correta": false },
         { "letra": "E", "texto": "...", "correta": false }
       ],
@@ -161,7 +166,18 @@ function parseImportJson(raw: string): ParseResult {
       ? (tagsRaw as unknown[]).map(String).filter(Boolean)
       : []
 
-    cartoes.push({ enunciado, alternativas, assertivas: [], justificativa, tags })
+    const assertivas = Array.isArray(item.assertivas)
+      ? (item.assertivas as Record<string, unknown>[])
+          .filter((a) => a.numeroRomano && a.texto)
+          .map((a, j) => ({
+            numeroRomano: String(a.numeroRomano),
+            texto:        stripHtml(String(a.texto)),
+            correta:      Boolean(a.correta),
+            ordem:        j,
+          }))
+      : []
+
+    cartoes.push({ enunciado, alternativas, assertivas, justificativa, tags })
   }
 
   if (cartoes.length === 0 && erros.length === 0) {
@@ -177,12 +193,12 @@ export default function ImportarPage() {
   const { deckId } = useParams<{ deckId: string }>()
   const navigate   = useNavigate()
 
-  const [deckNome, setDeckNome] = useState('')
-  const [prepId,   setPrepId]   = useState<string | null>(null)
-  const [aba,      setAba]      = useState<'prompt' | 'import'>('prompt')
+  const [deckNome,  setDeckNome]  = useState('')
+  const [prepNome,  setPrepNome]  = useState('')
+  const [prepId,    setPrepId]    = useState<string | null>(null)
+  const [aba,       setAba]       = useState<'prompt' | 'import'>('prompt')
 
-  // Gerador
-  const [disciplina, setDisciplina] = useState('')
+  // Gerador — banca e cargo auto-preenchidos da preparação
   const [banca,      setBanca]      = useState<Banca>('FCC')
   const [topicos,    setTopicos]    = useState('')
   const [quantidade, setQuantidade] = useState(5)
@@ -207,6 +223,7 @@ export default function ImportarPage() {
         setPrepId(deck.preparacaoId)
         const prep = await api.preparacoes.buscar(deck.preparacaoId)
         if (prep) {
+          setPrepNome(prep.nome)
           if (prep.banca) {
             const bancaValida = ['FCC', 'CESPE/CEBRASPE', 'VUNESP', 'FGV', 'AOCP', 'Quadrix'] as const
             const match = bancaValida.find((b) => b.toLowerCase() === prep.banca!.toLowerCase())
@@ -220,7 +237,7 @@ export default function ImportarPage() {
 
   function handleGerarPrompt() {
     if (!topicos.trim()) return
-    setPrompt(gerarPrompt(disciplina, banca, topicos, quantidade, nivel, cargo))
+    setPrompt(gerarPrompt(deckNome, banca, topicos, quantidade, nivel, cargo))
   }
 
   function handleCopiar() {
@@ -255,8 +272,7 @@ export default function ImportarPage() {
     }
   }
 
-  const bancas: Banca[] = ['FCC', 'CESPE/CEBRASPE', 'VUNESP', 'FGV', 'AOCP', 'Quadrix']
-  const niveis: Nivel[]  = ['médio', 'médio-alto', 'alto']
+  const niveis: Nivel[] = ['médio', 'médio-alto', 'alto']
 
   return (
     <div className="min-h-screen bg-slate-950 pb-16">
@@ -295,26 +311,34 @@ export default function ImportarPage() {
         {aba === 'prompt' && (
           <div className="flex flex-col gap-4">
             <p className="text-xs text-slate-500">
-              Preencha os campos abaixo para gerar um prompt otimizado. Cole-o em qualquer IA (Claude, ChatGPT, etc.) e traga o JSON de volta para importar.
+              Defina os tópicos e gere um prompt otimizado. Cole-o em qualquer IA (Claude, ChatGPT, etc.) e traga o JSON de volta para importar.
             </p>
 
-            <div className="grid grid-cols-2 gap-3">
-              <Field label="Disciplina">
-                <input
-                  value={disciplina}
-                  onChange={(e) => setDisciplina(e.target.value)}
-                  placeholder="Ex: Infraestrutura de TI"
-                  className="input-field w-full"
-                />
-              </Field>
-              <Field label="Cargo / Concurso">
-                <input
-                  value={cargo}
-                  onChange={(e) => setCargo(e.target.value)}
-                  placeholder="Ex: Analista TI – TJ-CE"
-                  className="input-field w-full"
-                />
-              </Field>
+            {/* Contexto automático (só leitura) */}
+            <div className="rounded-lg bg-slate-900 border border-slate-800 px-4 py-3 flex flex-col gap-1.5">
+              <p className="text-xs text-slate-500 font-medium uppercase tracking-wider mb-0.5">Contexto da preparação</p>
+              <div className="flex flex-wrap gap-2 text-xs">
+                {prepNome && (
+                  <span className="chip bg-brand-900/50 text-brand-400 border border-brand-700/40">
+                    {prepNome}
+                  </span>
+                )}
+                {banca && (
+                  <span className="chip bg-slate-800 text-slate-400 border border-slate-700">
+                    Banca: {banca}
+                  </span>
+                )}
+                {cargo && (
+                  <span className="chip bg-slate-800 text-slate-400 border border-slate-700">
+                    {cargo}
+                  </span>
+                )}
+                {deckNome && (
+                  <span className="chip bg-slate-800 text-slate-300 border border-slate-700">
+                    Deck: {deckNome}
+                  </span>
+                )}
+              </div>
             </div>
 
             <Field label="Tópicos a cobrir *">
@@ -327,12 +351,7 @@ export default function ImportarPage() {
               />
             </Field>
 
-            <div className="grid grid-cols-3 gap-3">
-              <Field label="Banca">
-                <select value={banca} onChange={(e) => setBanca(e.target.value as Banca)} className="input-field w-full">
-                  {bancas.map((b) => <option key={b}>{b}</option>)}
-                </select>
-              </Field>
+            <div className="grid grid-cols-2 gap-3">
               <Field label="Nível">
                 <select value={nivel} onChange={(e) => setNivel(e.target.value as Nivel)} className="input-field w-full">
                   {niveis.map((n) => <option key={n}>{n}</option>)}

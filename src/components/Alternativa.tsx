@@ -35,7 +35,14 @@ export default function AlternativaItem({
     eliminada: 'bg-slate-800 text-slate-500 border-slate-700',
   }
 
-  const classeAtual = eliminada ? estiloEstado.eliminada : estiloEstado[estado]
+  // Após responder, a alternativa correta SEMPRE aparece verde, mesmo se foi eliminada
+  const revelarCorreta = respondeu && estado === 'correta'
+
+  const classeAtual = revelarCorreta
+    ? estiloEstado.correta
+    : eliminada
+    ? estiloEstado.eliminada
+    : estiloEstado[estado]
 
   return (
     <div className={`${baseClasses} ${classeAtual}`}>
@@ -75,7 +82,7 @@ export default function AlternativaItem({
       >
         <span
           className={`shrink-0 w-7 h-7 rounded-full border flex items-center
-                      justify-center text-xs font-bold ${letraEstado[eliminada ? 'eliminada' : estado]}`}
+                      justify-center text-xs font-bold ${letraEstado[revelarCorreta ? 'correta' : (eliminada ? 'eliminada' : estado)]}`}
         >
           {alternativa.letra}
         </span>
