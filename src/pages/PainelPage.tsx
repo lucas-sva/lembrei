@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { ArrowLeft, Plus, Pencil, Trash2, Sparkles, ChevronDown, ChevronUp, Play } from 'lucide-react'
 import { api } from '../lib/tauri'
 import type { CartaoCompleto, Deck, HistoricoRevisao } from '../types'
-import { LABELS_ESTADO, CORES_ESTADO, diasAteRevisao, formatarIntervalo } from '../types'
+import { LABELS_ESTADO, CORES_ESTADO, diasAteRevisao, formatarIntervalo, formatarEnunciado } from '../types'
 import LineChart from '../components/charts/LineChart'
 
 type Filtro = 'todos' | 'novo' | 'aprendendo' | 'revisao' | 'reaprendendo'
@@ -95,7 +95,7 @@ export default function PainelPage() {
         <div className="flex-1 min-w-0">
           <h1 className="text-sm font-semibold text-slate-200 truncate">{deck?.nome ?? 'Painel'}</h1>
           <p className="text-xs text-slate-500">
-            {carregando ? '…' : `${cartoes.length} cartão${cartoes.length !== 1 ? 'ões' : ''}`}
+            {carregando ? '…' : `${cartoes.length} ${cartoes.length === 1 ? 'cartão' : 'cartões'}`}
           </p>
         </div>
         <button onClick={() => navigate(`/importar/${deckId}`)} className="btn-ghost px-2.5 py-1.5 text-xs">
@@ -172,8 +172,8 @@ export default function PainelPage() {
                     onClick={() => toggleExpandido(c.cartao.id)}
                     className="flex-1 text-left min-w-0"
                   >
-                    <p className="text-sm text-slate-200 line-clamp-2 leading-relaxed selecao-permitida">
-                      {c.cartao.enunciado}
+                    <p className="text-sm text-slate-200 line-clamp-3 leading-relaxed selecao-permitida whitespace-pre-wrap">
+                      {formatarEnunciado(c.cartao.enunciado)}
                     </p>
                     <div className="flex items-center gap-2 mt-2 flex-wrap">
                       <span className={`chip text-xs ${CORES_ESTADO[estado]}`}>

@@ -79,7 +79,13 @@ Retorne SOMENTE um JSON válido, sem texto antes ou depois, sem markdown code fe
 // ─── Parser de JSON importado ────────────────────────────────────────────────
 
 function stripHtml(html: string): string {
-  return html.replace(/<[^>]+>/g, ' ').replace(/\s{2,}/g, ' ').trim()
+  return html
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/p>/gi, '\n')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/[^\S\n]{2,}/g, ' ')   // colapsa espaços horizontais mas preserva \n
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
 }
 
 interface ParseResult {
@@ -172,6 +178,7 @@ export default function ImportarPage() {
   const navigate   = useNavigate()
 
   const [deckNome, setDeckNome] = useState('')
+  const [prepId,   setPrepId]   = useState<string | null>(null)
   const [aba,      setAba]      = useState<'prompt' | 'import'>('prompt')
 
   // Gerador
@@ -196,8 +203,8 @@ export default function ImportarPage() {
     api.decks.buscar(deckId).then(async (deck) => {
       if (!deck) return
       setDeckNome(deck.nome)
-      // Pré-preenche cargo/banca a partir da preparação
       if (deck.preparacaoId) {
+        setPrepId(deck.preparacaoId)
         const prep = await api.preparacoes.buscar(deck.preparacaoId)
         if (prep) {
           if (prep.banca) {
@@ -430,7 +437,7 @@ export default function ImportarPage() {
             {parseResult && parseResult.cartoes.length > 0 && (
               <div className="flex flex-col gap-3 animate-fade-in">
                 <div className="rounded-lg bg-emerald-950/40 border border-emerald-800 px-4 py-3 text-sm text-emerald-300">
-                  ✓ {parseResult.cartoes.length} cartão{parseResult.cartoes.length > 1 ? 'ões' : ''} válido{parseResult.cartoes.length > 1 ? 's' : ''} encontrado{parseResult.cartoes.length > 1 ? 's' : ''}.
+                  ✓ {parseResult.cartoes.length === 1 ? '1 cartão válido encontrado.' : `${parseResult.cartoes.length} cartões válidos encontrados.`}
                   {parseResult.erros.length > 0 && (
                     <span className="text-amber-400"> ({parseResult.erros.length} ignorado{parseResult.erros.length > 1 ? 's' : ''})</span>
                   )}
@@ -460,9 +467,12 @@ export default function ImportarPage() {
 
             {importSuccess !== null && (
               <div className="rounded-lg bg-emerald-950/40 border border-emerald-800 px-4 py-3 text-sm text-emerald-300 animate-fade-in">
-                ✓ {importSuccess} cartão{importSuccess > 1 ? 'ões importados' : ' importado'} com sucesso!{' '}
-                <button onClick={() => navigate(`/painel/${deckId}`)} className="underline">
-                  Ver no painel
+                ✓ {importSuccess === 1 ? '1 cartão importado' : `${importSuccess} cartões importados`} com sucesso!{' '}
+                <button
+                  onClick={() => navigate(prepId ? `/preparacao/${prepId}` : '/')}
+                  className="underline"
+                >
+                  Ir para revisão
                 </button>
               </div>
             )}

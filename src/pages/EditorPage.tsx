@@ -30,6 +30,7 @@ export default function EditorPage() {
   const [salvando,      setSalvando]      = useState(false)
   const [erro,          setErro]          = useState<string | null>(null)
   const [carregando,    setCarregando]    = useState(editando)
+  const [prepId,        setPrepId]        = useState<string | null>(null)
 
   const [alternativas, setAlternativas] = useState<AltForm[]>([
     { letra: 'A', texto: '', correta: false },
@@ -40,6 +41,11 @@ export default function EditorPage() {
   ])
 
   const [assertivas, setAssertivas] = useState<AssForm[]>([])
+
+  useEffect(() => {
+    if (!deckId) return
+    api.decks.buscar(deckId).then((d) => { if (d) setPrepId(d.preparacaoId) })
+  }, [deckId])
 
   // Carrega dados do cartão existente em modo de edição
   useEffect(() => {
@@ -111,6 +117,7 @@ export default function EditorPage() {
           assertivas:   assInput,
           tags,
         })
+        navigate(`/painel/${deckId}`)
       } else {
         await api.cartoes.criar({
           deckId: deckId!,
@@ -120,8 +127,9 @@ export default function EditorPage() {
           assertivas:   assInput,
           tags,
         })
+        // Após criar, vai para a lista de decks para poder clicar em Revisar
+        navigate(prepId ? `/preparacao/${prepId}` : '/')
       }
-      navigate(-1)
     } catch (e) {
       setErro(String(e))
       setSalvando(false)

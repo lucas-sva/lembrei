@@ -27,9 +27,7 @@ export default function DecksPage() {
   }, [prepId]) // eslint-disable-line
 
   useEffect(() => {
-    decks.forEach((d) => {
-      if (!estatisticas[d.id]) carregarEstatisticas(d.id)
-    })
+    decks.forEach((d) => carregarEstatisticas(d.id))
   }, [decks]) // eslint-disable-line
 
   async function handleCriar(e: React.FormEvent) {
@@ -86,7 +84,7 @@ export default function DecksPage() {
         <div className="max-w-3xl mx-auto px-5 pt-4">
           <div className="rounded-xl bg-amber-950/40 border border-amber-800/50 px-4 py-3 flex items-center justify-between gap-3">
             <p className="text-sm text-amber-300">
-              <span className="font-bold">{totalHoje}</span> cartão{totalHoje !== 1 ? 'ões' : ''} aguardando revisão
+              <span className="font-bold">{totalHoje}</span> {totalHoje === 1 ? 'cartão aguardando' : 'cartões aguardando'} revisão
             </p>
             <ChevronRight size={14} className="text-amber-500 shrink-0" />
           </div>

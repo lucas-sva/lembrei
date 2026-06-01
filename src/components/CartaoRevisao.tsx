@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { CartaoCompleto, Avaliacao, EstadoSrs } from '../types'
+import { formatarEnunciado } from '../types'
 import MetaTags      from './MetaTags'
 import AssertiviaItem from './Assertiva'
 import AlternativaItem from './Alternativa'
@@ -62,7 +63,7 @@ export default function CartaoRevisao({ cartao, onAvaliar, onAvancar }: CartaoRe
       {/* Enunciado */}
       <div className="card-surface p-5">
         <p className="text-sm font-medium text-slate-200 leading-relaxed selecao-permitida whitespace-pre-wrap">
-          {card.enunciado}
+          {formatarEnunciado(card.enunciado)}
         </p>
       </div>
 

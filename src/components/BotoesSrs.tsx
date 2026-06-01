@@ -13,22 +13,26 @@ const AVALIACOES: Avaliacao[] = [1, 2, 3, 4]
 
 export default function BotoesSrs({ onAvaliar, onAvancar, carregando, resultado }: BotoesSrsProps) {
   if (resultado) {
-    const dias     = diasAteRevisao(resultado.proximaRevisao)
+    const dias      = diasAteRevisao(resultado.proximaRevisao)
     const intervalo = formatarIntervalo(dias)
-    const estadoLabel: Record<string, string> = {
-      aprendendo:   'Aprendendo',
-      revisao:      'Revisão',
-      reaprendendo: 'Reaprendendo',
-    }
+
+    // Descrição amigável do estado de memória baseada na estabilidade
+    const memoriaMsg = (() => {
+      const s = resultado.estabilidade
+      if (resultado.estado === 'reaprendendo') return 'Cartão em recuperação — continue revisando.'
+      if (resultado.estado === 'aprendendo')   return 'Cartão em memorização inicial.'
+      if (s < 3)   return 'Memória ainda fraca — será revisado em breve.'
+      if (s < 14)  return 'Memória em formação — bom progresso!'
+      if (s < 60)  return 'Memória consolidada — continue assim!'
+      return 'Memória de longo prazo — excelente!'
+    })()
 
     return (
       <div className="flex items-center justify-between gap-4 rounded-xl bg-slate-800/60 border border-slate-700 px-5 py-3 animate-fade-in">
         <div className="flex flex-col gap-0.5">
           <span className="text-xs text-slate-500">Próxima revisão</span>
           <span className="text-sm font-semibold text-slate-100">{intervalo}</span>
-          <span className="text-xs text-slate-500">
-            {estadoLabel[resultado.estado] ?? resultado.estado} · S={resultado.estabilidade.toFixed(1)}d
-          </span>
+          <span className="text-xs text-slate-500">{memoriaMsg}</span>
         </div>
         <button
           onClick={onAvancar}

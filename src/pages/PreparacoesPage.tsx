@@ -136,7 +136,7 @@ export default function PreparacoesPage() {
           <div className="mt-5 rounded-xl bg-amber-950/40 border border-amber-800/50 px-4 py-3 flex items-center gap-3">
             <Zap size={16} className="text-amber-400 shrink-0" />
             <p className="text-sm text-amber-300">
-              <span className="font-bold">{totalHojeGlobal}</span> cartão{totalHojeGlobal !== 1 ? 'ões' : ''} para revisar hoje
+              <span className="font-bold">{totalHojeGlobal}</span> {totalHojeGlobal === 1 ? 'cartão' : 'cartões'} para revisar hoje
             </p>
           </div>
         )}

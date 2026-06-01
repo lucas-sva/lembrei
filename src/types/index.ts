@@ -216,6 +216,16 @@ export const CORES_ESTADO: Record<string, string> = {
   reaprendendo: 'bg-rose-900/60 text-rose-300',
 }
 
+// Insere \n antes de itens romanos (I. II. III. etc.) embutidos no enunciado
+// Ex: "...considere: I. texto A. II. texto B." → "...considere:\nI. texto A.\nII. texto B."
+export function formatarEnunciado(texto: string): string {
+  if (/\n[IVX]+\./.test(texto)) return texto  // já formatado
+  return texto.replace(
+    /([.:]) ((?:I{1,3}|IV|VI{0,3})\.) ([A-ZÁÉÍÓÚÀÈÌÒÙÃÕÂÊÎÔÛÇ])/g,
+    '$1\n$2 $3'
+  )
+}
+
 export function diasAteRevisao(proximaRevisao: string): number {
   const proxima = new Date(proximaRevisao)
   const agora   = new Date()
